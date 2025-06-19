@@ -272,40 +272,44 @@ with tabs[1]:
 
 
 # ===== Tab 3: Chatbot =====
+import  ollama
 with tabs[2]:
-    st.header("💬 Chat with Health Assistant")
+    st.header("💬 Fast Health Assistant ")
 
-    if "OPENAI_API_KEY" not in st.secrets:
-        st.warning("OpenAI API key not found. Please add it to Streamlit secrets.")
-    else:
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [
+            {
+                "role": "system",
+                "content": "You are a health assistant. Answer briefly."
+            }
+        ]
 
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = [
-                {"role": "system", "content": "You are a helpful AI health assistant. Answer general health and nutrition questions helpfully."}
-            ]
+    def generate_response():
+        user_query = st.session_state.user_input.strip()
+        if user_query:
+            st.session_state.chat_history.append({"role": "user", "content": user_query})
 
-        def generate_response():
-            user_query = st.session_state.user_input.strip()
-            if user_query:
-                st.session_state.chat_history.append({"role": "user", "content": user_query})
-                try:
-                    response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=st.session_state.chat_history,
-                        temperature=0.7,
-                        max_tokens=500
+            try:
+                with st.spinner("Thinking..."):
+                    response = ollama.chat(
+                        model="gemma",
+                        messages=[
+                            st.session_state.chat_history[0],  # system
+                            st.session_state.chat_history[-1]  # latest user
+                        ]
                     )
-                    reply = response.choices[0].message["content"]
+                    reply = response["message"]["content"]
                     st.session_state.chat_history.append({"role": "assistant", "content": reply})
-                except Exception as e:
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
-                st.session_state.user_input = ""
+            except Exception as e:
+                st.session_state.chat_history.append(
+                    {"role": "assistant", "content": f"⚠️ Error: {e}"}
+                )
 
-        # Display chat history
-        for msg in st.session_state.chat_history[1:]:
-            role = "You" if msg["role"] == "user" else "Health Bot"
-            st.markdown(f"**{role}:** {msg['content']}")
+            st.session_state.user_input = ""
 
-        st.text_input("Type your question and press Enter:", key="user_input", on_change=generate_response)
-        st.caption("🧠 Powered by OpenAI GPT-3.5 Turbo")
+    for msg in st.session_state.chat_history[1:]:
+        role = "You" if msg["role"] == "user" else "🩺 Bot"
+        st.markdown(f"**{role}:** {msg['content']}")
+
+    st.text_input("Type your question:", key="user_input", on_change=generate_response)
+    st.caption("⚡ Powered locally with Ollama + Gemma")
